@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Jump Menu block caps.
+ * LSBU Course Overview caps.
  *
  * @package    block_lsbu_course_overview
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
