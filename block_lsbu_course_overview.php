@@ -27,6 +27,32 @@ class block_lsbu_course_overview extends block_base {
         $this->title   = get_string('pluginname', 'block_lsbu_course_overview');
     }
     
+    /**
+     *
+     * function to check if the logged in user is a student
+     *
+     */
+    private function isStudent($username)
+    {
+        global $DB;
+        
+        // TODO get database name from db extended config plugins setting
+        $sql="SELECT role FROM mis_lsbu.moodle_users where username='$username'";
+        
+        $roles = array();
+        
+        $roles = $DB->get_records_sql($sql ,null);
+        
+        foreach($roles as $role)
+        {
+            if(!empty($role->role))
+            {
+                return true;    
+            }
+        }
+        
+        return false;    
+    }
     
     
     private function print_lsbu_overview($courses, array $remote_courses=array()) {
@@ -61,7 +87,12 @@ class block_lsbu_course_overview extends block_base {
             // add shortname 
             $fullname = $fullname . ' (' .$course->shortname . ')';
             
-            $course_link = html_writer::link(new moodle_url('/course/view.php', array('id' => $course->id)), $fullname, $attributes);
+            // djsomers - for students show hidden items but do not allow them to be navigable (e.g. hidden courses)
+            if(empty($course->visible) && $this->isStudent($USER->username)==true) {
+                $course_link = $fullname;
+            } else {
+                $course_link = html_writer::link(new moodle_url('/course/view.php', array('id' => $course->id)), $fullname, $attributes);
+            }
             
             // get category for course/module
             $category = $DB->get_record('course_categories', array('id'=>$course->category), '*', MUST_EXIST);
