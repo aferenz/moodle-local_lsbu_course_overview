@@ -146,6 +146,7 @@ class lsbu_course_hierarchy_manager {
     /** @var array The hierarchy, which is build when objects of this class are instantiated */
     private $hierarchy = array();
 
+    private $page = null;
 
     /**
      * This function assumes the 'raw_structure' contains a multi-dimensional array that looks
@@ -155,8 +156,10 @@ class lsbu_course_hierarchy_manager {
      *
      * @param $raw_structure
      */
-    public function __construct($raw_structure)
+    public function __construct($page, $raw_structure)
     {
+        $this->page = $page;
+
         // What is the current academic year?
         $time = time();
         $year = date('y', $time);
@@ -169,17 +172,7 @@ class lsbu_course_hierarchy_manager {
             $previousacademicyear = ($year-1).'/'.$year;
         }
 
-
-
-
         // current academic year goes first
-     /*   $this->hierarchy = array($currentacademicyear = array($raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE],
-                                                         $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE],
-                                                         $raw_structure[lsbu_course::COURSETYPE_STUDENTSUPPORT]),
-                                $previousacademicyear = array($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE],
-                                                               $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE])
-
-        );*/
 
         $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE];
         $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE];
@@ -197,24 +190,31 @@ class lsbu_course_hierarchy_manager {
         $result = '';
 
         if(!empty($this->hierarchy)) {
+
+            $yuiconfig = array();
+            $yuiconfig['type'] = 'html';
+
             $result .= html_writer::start_tag('ul');
 
             foreach ($this->hierarchy as $year=>$courses) {
-                $result .= html_writer::start_tag('li');
+                $result .= html_writer::start_tag('li', array('class'=>'expanded'));
 
                 // Heading for the year
                 $result .= html_writer::tag('h3', $year);
                 // display courses and modules if there are any
                 if(!empty($courses)) {
                     // Display courses
+                    $result .= html_writer::start_tag('ul');
+
                     if(isset($courses[lsbu_course::COURSETYPE_COURSE])) {
 
                         $courses_html = html_writer::tag('h3', 'Courses '.$year);
+                        $courses_html = html_writer::tag('li', $courses_html);
+
                         foreach ($courses[lsbu_course::COURSETYPE_COURSE] as $course) {
                             $courses_html .= html_writer::tag('li', $course->get_html());
                         }
 
-                        $courses_html = html_writer::tag('ul', $courses_html);
 
                         $result .= $courses_html;
                     }
@@ -222,11 +222,12 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_MODULE])) {
 
                         $modules_html = html_writer::tag('h3', 'Modules '.$year);
+                        $modules_html = html_writer::tag('li', $modules_html);
+
                         foreach ($courses[lsbu_course::COURSETYPE_MODULE] as $module) {
                             $modules_html .= html_writer::tag('li', $module->get_html());
                         }
 
-                        $modules_html = html_writer::tag('ul', $modules_html);
 
                         $result .= $modules_html;
                     }
@@ -234,12 +235,13 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
 
                         $studentsupport_html = html_writer::tag('h3', 'Student Support');
+                        $studentsupport_html = html_writer::tag('li', $studentsupport_html);
 
                         foreach ($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT] as $studentsupport) {
                             $studentsupport_html .= html_writer::tag('li', $studentsupport->get_html());
                         }
 
-                        $studentsupport_html = html_writer::tag('ul', $studentsupport_html);
+
 
                         $result .= $studentsupport_html;
                     }
@@ -247,18 +249,30 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
 
                         $support_html = html_writer::tag('h3', 'Support');
+                        $support_html = html_writer::tag('li', $support_html);
 
                         foreach ($courses[lsbu_course::COURSETYPE_SUPPORT] as $support) {
                             $support_html .= html_writer::tag('li', $support->get_html());
                         }
-                        $support_html = html_writer::tag('ul', $support_html);
+
 
                         $result .= $support_html;
                     }//if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
+
+                    $result .= html_writer::end_tag('ul');
+
                 }//if(!empty($courses))
             }//foreach ($this->hierarchy as $year=>$courses)
 
             $result .= html_writer::end_tag('ul');
+
+            // Now wrap this in a <div> for YUI to pick up
+            $htmlid = 'lsbu_course_overview_tree_'.uniqid();
+            $this->page->requires->js_init_call('M.block_lsbu_course_overview.init_tree', array(false, $htmlid));
+            $html = '<div id="'.$htmlid.'">'.$result.'</div>';
+
+            $result = $html;
+
         }//if(!empty($this->hierarchy))
 
         return $result;
@@ -352,7 +366,7 @@ class block_lsbu_course_overview extends block_base {
                 --- Modules
         */
 
-        $hierarchy_manager = new lsbu_course_hierarchy_manager($course_tree);
+        $hierarchy_manager = new lsbu_course_hierarchy_manager($this->page, $course_tree);
 
         // render internal courses
         $overview .= $OUTPUT->box_start('coursebox');
