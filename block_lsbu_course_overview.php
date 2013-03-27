@@ -18,6 +18,289 @@
 require_once($CFG->dirroot.'/lib/weblib.php');
 require_once($CFG->dirroot . '/lib/formslib.php');
 
+/* An lsbu 'course' (not be confused with a Moodle course) can be one of the following types...
+    - course
+    - module
+    - support
+    - student support
+*/
+class lsbu_course {
+    const COURSETYPE_COURSE = 0;
+    const COURSETYPE_MODULE = 1;
+    const COURSETYPE_SUPPORT = 2;
+    const COURSETYPE_STUDENTSUPPORT = 3;
+    const COURSETYPE_UNKNOWN = 4;
+
+    // Instance attributes
+    /* The Moodle course this lsbu course represents */
+    private $moodle_course = null;
+
+    private $academic_year = 'n/a';
+
+    private $category = null;
+
+    private $type = lsbu_course::COURSETYPE_UNKNOWN;
+
+    /** @var null Where in LSBU's course structure this lsbu_course belongs. Not to be confused with a Moodle context */
+    private $context = null;
+
+    // Behaviour
+    public function __construct($moodle_course)
+    {
+        global $DB;
+
+        // contruct an instance of an lsbu course from a Moodle course
+        $this->moodle_course = $moodle_course;
+
+        // get category for course/module
+        $this->category = $DB->get_record('course_categories', array('id'=>$this->moodle_course->category), '*', MUST_EXIST);
+
+        $config = get_config('block_lsbu_course_overview');
+        
+        if(preg_match($config->courseregexp, $config->coursefield)) {
+            $this->type = lsbu_course::COURSETYPE_COURSE;
+        }
+        if (preg_match($config->moduleregexp, $config->modulefield)) {
+            $this->type = lsbu_course::COURSETYPE_MODULE;
+        }
+
+        // Academic year is last 4 characters of shortname, e.g. 1213 - or 'n/a' if it's not applicable
+        $academic_year = '';
+        if((strlen($config->academicyearfield) > 4) && (preg_match($config->academicyearregexp, $this->moodle_course->shortname, $academic_year))) {
+            $this->academic_year = substr($academic_year[0], -4, 2).'/'.substr($academic_year[0], -2, 2);
+        } else {
+            // This is going to be either a 'support' or 'student support' course. We can tell from the category
+            // they are in.
+            if(strcasecmp($this->category->name, $config->supportcategory) == 0) {
+                $this->type = lsbu_course::COURSETYPE_SUPPORT;
+            } elseif (strcasecmp($this->category->name, $config->studentsupportcategory) == 0) {
+                $this->type = lsbu_course::COURSETYPE_STUDENTSUPPORT;
+            }
+        }
+    }
+
+    private function isStudent($username)
+    {
+        global $DB;
+
+        $result = false;
+
+        // TODO get database name from db extended config plugins setting
+        $sql="SELECT role FROM mis_lsbu.moodle_users where username='$username'";
+
+        $roles = $DB->get_records_sql($sql ,null);
+
+        foreach($roles as $role)
+        {
+            if(!empty($role->role))
+            {
+                $result = true;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Returns the HTML for this object.
+     * @return string
+     */
+    public function get_html() {
+        global $USER;
+
+        $fullname = format_string($this->moodle_course->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, $this->moodle_course->id)));
+        // add shortname
+        $fullname = $fullname . ' (' .$this->moodle_course->shortname . ')';
+
+        $attributes = array('title' => s($fullname));
+        if (empty($this->moodle_course->visible)) {
+            $attributes['class'] = 'dimmed';
+        }
+
+        // djsomers - for students show hidden items but do not allow them to be navigable (e.g. hidden courses)
+        if(empty($this->moodle_course->visible) && $this->isStudent($USER->username)==true) {
+            $result = $fullname;
+        } else {
+            $result = html_writer::link(new moodle_url('/course/view.php', array('id' => $this->moodle_course->id)), $fullname, $attributes);
+        }
+
+        return $result;
+    }
+
+    // 'getting and setting' functions
+    public function get_type() {
+        return $this->type;
+    }
+
+    public function get_academic_year() {
+        return $this->academic_year;
+    }
+}
+
+/**
+ * This class manages the course hierarchy. It is provided with a 'raw' struture which it then
+ * rearranges subject to LSBU requirements. Currently these requirements are subject to change - hence
+ * this class.
+ *
+ * Class lsbu_course_hierarchy_manager
+ */
+class lsbu_course_hierarchy_manager {
+
+    /** @var array The hierarchy, which is build when objects of this class are instantiated */
+    private $hierarchy = array();
+
+    private $page = null;
+
+    /**
+     * This function assumes the 'raw_structure' contains a multi-dimensional array, indexed (basically) by academic year.
+     * 
+     * @param $raw_structure
+     */
+    public function __construct($page, $raw_structure)
+    {
+        $this->page = $page;
+
+        // What is the current academic year?
+        $time = time();
+        $year = date('y', $time);
+
+        $academicyearstart = intval(get_config('block_lsbu_course_overview', 'academicyearstart'));
+        
+        if(date('n', $time) < $academicyearstart){
+            $currentacademicyear = ($year - 1).'/'.$year;
+            $previousacademicyear = ($year - 2).'/'.($year-1);
+            $nextacademicyear = ($year).'/'.$year+1;
+        }else{
+            $currentacademicyear = ($year).'/'.($year + 1);
+            $previousacademicyear = ($year-1).'/'.$year;
+            $nextacademicyear = ($year+1).'/'.($year);
+        }
+
+        // Current academic year goes first
+        if(isset($raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+	        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        if(isset($raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
+        	$this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
+        }
+        // Then previous academic year
+		if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
+		}
+        if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+			$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        // Finally next academic year
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        
+    }
+
+    public function get_hierarchy() {
+        return $this->hierarchy;
+    }
+
+    public function get_rendered_hierarchy() {
+        $result = '';
+
+        if(!empty($this->hierarchy)) {
+
+            $yuiconfig = array();
+            $yuiconfig['type'] = 'html';
+
+            $result .= html_writer::start_tag('ul');
+
+            foreach ($this->hierarchy as $year=>$courses) {
+                $result .= html_writer::start_tag('li', array('class'=>'expanded'));
+
+                // Heading for the year
+                $result .= html_writer::tag('h3', $year);
+                // display courses and modules if there are any
+                if(!empty($courses)) {
+                    // Display courses
+                    $result .= html_writer::start_tag('ul');
+
+                    if(isset($courses[lsbu_course::COURSETYPE_COURSE])) {
+
+                        $courses_html = html_writer::tag('h3', 'Courses '.$year);
+                        $courses_html = html_writer::tag('li', $courses_html);
+
+                        foreach ($courses[lsbu_course::COURSETYPE_COURSE] as $course) {
+                            $courses_html .= html_writer::tag('li', $course->get_html());
+                        }
+
+
+                        $result .= $courses_html;
+                    }
+                    // Display modules
+                    if(isset($courses[lsbu_course::COURSETYPE_MODULE])) {
+
+                        $modules_html = html_writer::tag('h3', 'Modules '.$year);
+                        $modules_html = html_writer::tag('li', $modules_html);
+
+                        foreach ($courses[lsbu_course::COURSETYPE_MODULE] as $module) {
+                            $modules_html .= html_writer::tag('li', $module->get_html());
+                        }
+
+
+                        $result .= $modules_html;
+                    }
+                    // Display student support
+                    if(isset($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
+
+                        $studentsupport_html = html_writer::tag('h3', 'Student Support');
+                        $studentsupport_html = html_writer::tag('li', $studentsupport_html);
+
+                        foreach ($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT] as $studentsupport) {
+                            $studentsupport_html .= html_writer::tag('li', $studentsupport->get_html());
+                        }
+
+
+
+                        $result .= $studentsupport_html;
+                    }
+                    // Display support
+                    if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
+
+                        $support_html = html_writer::tag('h3', 'Support');
+                        $support_html = html_writer::tag('li', $support_html);
+
+                        foreach ($courses[lsbu_course::COURSETYPE_SUPPORT] as $support) {
+                            $support_html .= html_writer::tag('li', $support->get_html());
+                        }
+
+
+                        $result .= $support_html;
+                    }//if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
+
+                    $result .= html_writer::end_tag('ul');
+
+                }//if(!empty($courses))
+            }//foreach ($this->hierarchy as $year=>$courses)
+
+            $result .= html_writer::end_tag('ul');
+
+            // Now wrap this in a <div> for YUI to pick up
+            $htmlid = 'lsbu_course_overview_tree_'.uniqid();
+            $this->page->requires->js_init_call('M.block_lsbu_course_overview.init_tree', array(false, $htmlid));
+            $html = '<div id="'.$htmlid.'">'.$result.'</div>';
+
+            $result = $html;
+
+        }//if(!empty($this->hierarchy))
+
+        return $result;
+
+    }
+}
+
 
 class block_lsbu_course_overview extends block_base {
     /**
@@ -26,11 +309,10 @@ class block_lsbu_course_overview extends block_base {
     public function init() {
         $this->title   = get_string('pluginname', 'block_lsbu_course_overview');
     }
-    
-    
-    
-    private function print_lsbu_overview($courses, array $remote_courses=array()) {
-        global $CFG, $USER, $DB, $OUTPUT;
+
+
+    private function print_lsbu_overview($moodle_courses, array $remote_courses=array()) {
+        global $DB, $OUTPUT;
     
         $htmlarray = array();
         
@@ -39,109 +321,80 @@ class block_lsbu_course_overview extends block_base {
         // all course year categories
         $all_course_years = array();
             
-        if ($modules = $DB->get_records('modules')) {
-            foreach ($modules as $mod) {
+        if ($activity_modules = $DB->get_records('modules')) {
+            foreach ($activity_modules as $mod) {
                 if (file_exists(dirname(dirname(__FILE__)).'/mod/'.$mod->name.'/lib.php')) {
                     include_once(dirname(dirname(__FILE__)).'/mod/'.$mod->name.'/lib.php');
                     $fname = $mod->name.'_print_overview';
                     if (function_exists($fname)) {
-                        $fname($courses,$htmlarray);
+                        $fname($moodle_courses,$htmlarray);
                     }
                 }
             }
         }
-        
-        foreach ($courses as $course) {
-            $fullname = format_string($course->fullname, true, array('context' => get_context_instance(CONTEXT_COURSE, $course->id)));
-            $attributes = array('title' => s($fullname));
-            if (empty($course->visible)) {
-                $attributes['class'] = 'dimmed';
+
+        // We contruct a multidimentional array of academic years, modules and courses
+        $course_tree = array();
+
+        foreach ($moodle_courses as $moodle_course) {
+
+            $course_instance = new lsbu_course($moodle_course);
+
+            /* An lsbu course instance knows
+                - what academic year it belongs to, it
+                - if it is a module, course, support, student support, unknown, etc.
+
+            */
+
+            if(isset($course_instance)) {
+                $academic_year = $course_instance->get_academic_year();
+                $course_type = $course_instance->get_type();
+
+                $course_tree[$academic_year][$course_type][] = $course_instance;
             }
-            
-            // add shortname 
-            $fullname = $fullname . ' (' .$course->shortname . ')';
-            
-            $course_link = html_writer::link(new moodle_url('/course/view.php', array('id' => $course->id)), $fullname, $attributes);
-            
-            // get category for course/module
-            $category = $DB->get_record('course_categories', array('id'=>$course->category), '*', MUST_EXIST);
-            
-            // get course year category
-            $path = $category->path;
-            $path = ltrim($path,"/");
-            $parent_categories = explode("/",$path);
-            $course_year=$parent_categories[0];
-            
-            $category_year = $DB->get_record('course_categories', array('id'=>$course_year), '*', MUST_EXIST);
-            
-            // get the category for this course/module
-            $course_year_name=$category->name;
-            
-            $is_course = stripos($category->idnumber,'CRS_');
-            $is_module = stripos($category->idnumber,'MOD_');
-                    
-            // model course and module
-            $course_module = new stdClass();
-        
-            // check if it is a course
-            if($is_course !== false) {
-                $course_module->type='course';
-                $course_module->link=$course_link;    
-            } else if($is_module !== false) { // check if it is a module
-                $course_module->type='module';
-                $course_module->link=$course_link; 
-            } else {
-                $course_module->type='unknown';
-                $course_module->link=$course_link; 
-            }
-            
-            // add course link to particular course year
-            $all_course_years[$course_year_name][]=$course_module;
-            
-            if (array_key_exists($course->id,$htmlarray)) {
-                foreach ($htmlarray[$course->id] as $modname => $html) {
-                    echo $html;
-                }
-            }            
         }
     
         if (!empty($remote_courses)) {
             echo $OUTPUT->heading(get_string('remotecourses', 'mnet'));
-        }
-        
-        foreach ($remote_courses as $course) {
-            echo $OUTPUT->box_start('coursebox');
-            $attributes = array('title' => s($course->fullname));
-            echo $OUTPUT->heading(html_writer::link(
-                new moodle_url('/auth/mnet/jump.php', array('hostid' => $course->hostid, 'wantsurl' => '/course/view.php?id='.$course->remoteid)),
-                format_string($course->shortname),
-                $attributes) . ' (' . format_string($course->hostname) . ')', 3);
-            echo $OUTPUT->box_end();
-        }
-        
-        
-        // render output
-        $overview .= $OUTPUT->box_start('coursebox');
-        
-        foreach($all_course_years as $key => $acy) {
-            
-            // course year
-            $overview .= html_writer::start_tag('h3');
-            $overview .= $key;
-            $overview .= html_writer::end_tag('h3');
-            
-            $overview .= html_writer::start_tag('ul');
-            
-            // courses and modules
-            foreach($acy as $cy) {
-                $overview .= html_writer::start_tag('li',array('class'=>'lbbu_'.$cy->type));
-                $overview .= $cy->link;
-                $overview .= html_writer::end_tag('li');
+
+            // render remote courses
+            foreach ($remote_courses as $course) {
+                echo $OUTPUT->box_start('coursebox');
+                $attributes = array('title' => s($course->fullname));
+                echo $OUTPUT->heading(html_writer::link(
+                    new moodle_url('/auth/mnet/jump.php', array('hostid' => $course->hostid, 'wantsurl' => '/course/view.php?id='.$course->remoteid)),
+                    format_string($course->shortname),
+                    $attributes) . ' (' . format_string($course->hostname) . ')', 3);
+                echo $OUTPUT->box_end();
             }
-            
-            $overview .= html_writer::end_tag('ul');
         }
-        
+
+        /*
+            Structure output tree for internal courses...
+
+            Current Year (12/13)
+                |
+                --- Courses
+                |
+                --- Modules
+                |
+                --- Student support
+
+            Previous Year (11/12)
+                |
+                --- Courses
+                |
+                --- Modules
+        */
+
+        $hierarchy_manager = new lsbu_course_hierarchy_manager($this->page, $course_tree);
+
+        // render internal courses
+        $overview .= $OUTPUT->box_start('coursebox');
+
+        // The hierarchy manager knows how to render the course hierarchy
+        $overview .= $hierarchy_manager->get_rendered_hierarchy();
+
         $overview .= $OUTPUT->box_end();
         
         echo $overview;
@@ -237,7 +490,7 @@ class block_lsbu_course_overview extends block_base {
      * @return boolean
      */
     public function has_config() {
-        return false;
+        return true;
     }
 
     /**
