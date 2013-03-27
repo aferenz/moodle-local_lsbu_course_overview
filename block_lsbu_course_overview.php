@@ -230,7 +230,7 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_COURSE])) {
 
                         $courses_html = $this->isexpandable($year);
-                        $courses_html .= html_writer::tag('h3', 'Courses '.$year);
+                        $courses_html .= html_writer::tag('h3', get_string('courses', 'block_lsbu_course_overview', $year));
                         $courses_html .= html_writer::start_tag('ul');
                         foreach ($courses[lsbu_course::COURSETYPE_COURSE] as $course) {
                             $courses_html .= html_writer::tag('li', $course->get_html());
@@ -244,7 +244,7 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_MODULE])) {
 
                         $modules_html = $this->isexpandable($year);
-                        $modules_html .= html_writer::tag('h3', 'Modules '.$year);
+                        $modules_html .= html_writer::tag('h3', get_string('modules', 'block_lsbu_course_overview', $year));
                         $modules_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_MODULE] as $module) {
@@ -259,7 +259,7 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
 
                         $studentsupport_html = $this->isexpandable($year);
-                        $studentsupport_html .= html_writer::tag('h3', 'Student Support');
+                        $studentsupport_html .= html_writer::tag('h3', get_string('studentsupport', 'block_lsbu_course_overview'));
                         $studentsupport_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT] as $studentsupport) {
@@ -274,7 +274,7 @@ class lsbu_course_hierarchy_manager {
                     if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
 
                         $support_html = $this->isexpandable($year);
-                        $support_html .= html_writer::tag('h3', 'Support');
+                        $support_html .= html_writer::tag('h3', get_string('support', 'block_lsbu_course_overview'));
                         $support_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_SUPPORT] as $support) {
