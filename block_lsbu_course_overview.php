@@ -148,6 +148,8 @@ class lsbu_course_hierarchy_manager {
 
     private $page = null;
 
+    private $currentacademicyear;
+
     /**
      * This function assumes the 'raw_structure' contains a multi-dimensional array that looks
      * something like...
@@ -165,18 +167,18 @@ class lsbu_course_hierarchy_manager {
         $year = date('y', $time);
 
         if(date('n', $time) < 10){
-            $currentacademicyear = ($year - 1).'/'.$year;
+            $this->currentacademicyear = ($year - 1).'/'.$year;
             $previousacademicyear = ($year - 2).'/'.($year-1);
         }else{
-            $currentacademicyear = ($year).'/'.($year + 1);
+            $this->currentacademicyear = ($year).'/'.($year + 1);
             $previousacademicyear = ($year-1).'/'.$year;
         }
 
         // current academic year goes first
 
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE];
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE];
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
+        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE];
+        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE];
+        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
 
         $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
         $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
@@ -185,6 +187,24 @@ class lsbu_course_hierarchy_manager {
     public function get_hierarchy() {
         return $this->hierarchy;
     }
+
+/*
+ * Function to check whether the tree should expanded.
+ * The tree should be expanded if its elements belong to current year.
+ *
+ * @param $year
+ */
+   public function isexpandable($year){
+
+       if($year == $this->currentacademicyear){
+           $result = html_writer::start_tag('li', array('class'=>'expanded'));
+       }else{
+           $result = html_writer::start_tag('li');
+       }
+
+       return $result;
+   }
+
 
     public function get_rendered_hierarchy() {
         $result = '';
@@ -197,7 +217,8 @@ class lsbu_course_hierarchy_manager {
             $result .= html_writer::start_tag('ul');
 
             foreach ($this->hierarchy as $year=>$courses) {
-                $result .= html_writer::start_tag('li', array('class'=>'expanded'));
+
+                $result .= $this->isexpandable($year);
 
                 // Heading for the year
                 $result .= html_writer::tag('h3', $year);
@@ -208,54 +229,60 @@ class lsbu_course_hierarchy_manager {
 
                     if(isset($courses[lsbu_course::COURSETYPE_COURSE])) {
 
-                        $courses_html = html_writer::tag('h3', 'Courses '.$year);
-                        $courses_html = html_writer::tag('li', $courses_html);
-
+                        $courses_html = $this->isexpandable($year);
+                        $courses_html .= html_writer::tag('h3', 'Courses '.$year);
+                        $courses_html .= html_writer::start_tag('ul');
                         foreach ($courses[lsbu_course::COURSETYPE_COURSE] as $course) {
                             $courses_html .= html_writer::tag('li', $course->get_html());
                         }
 
-
+                        $courses_html .= html_writer::end_tag('ul');
+                        $courses_html .= html_writer::end_tag('li');
                         $result .= $courses_html;
                     }
                     // Display modules
                     if(isset($courses[lsbu_course::COURSETYPE_MODULE])) {
 
-                        $modules_html = html_writer::tag('h3', 'Modules '.$year);
-                        $modules_html = html_writer::tag('li', $modules_html);
+                        $modules_html = $this->isexpandable($year);
+                        $modules_html .= html_writer::tag('h3', 'Modules '.$year);
+                        $modules_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_MODULE] as $module) {
                             $modules_html .= html_writer::tag('li', $module->get_html());
                         }
 
-
+                        $modules_html .= html_writer::end_tag('ul');
+                        $modules_html .= html_writer::end_tag('li');
                         $result .= $modules_html;
                     }
                     // Display student support
                     if(isset($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
 
-                        $studentsupport_html = html_writer::tag('h3', 'Student Support');
-                        $studentsupport_html = html_writer::tag('li', $studentsupport_html);
+                        $studentsupport_html = $this->isexpandable($year);
+                        $studentsupport_html .= html_writer::tag('h3', 'Student Support');
+                        $studentsupport_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_STUDENTSUPPORT] as $studentsupport) {
                             $studentsupport_html .= html_writer::tag('li', $studentsupport->get_html());
                         }
 
-
-
+                        $studentsupport_html .= html_writer::end_tag('ul');
+                        $studentsupport_html .= html_writer::end_tag('li');
                         $result .= $studentsupport_html;
                     }
                     // Display support
                     if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
 
-                        $support_html = html_writer::tag('h3', 'Support');
-                        $support_html = html_writer::tag('li', $support_html);
+                        $support_html = $this->isexpandable($year);
+                        $support_html .= html_writer::tag('h3', 'Support');
+                        $support_html .= html_writer::start_tag('ul');
 
                         foreach ($courses[lsbu_course::COURSETYPE_SUPPORT] as $support) {
                             $support_html .= html_writer::tag('li', $support->get_html());
                         }
 
-
+                        $support_html .= html_writer::end_tag('ul');
+                        $support_html .= html_writer::end_tag('li');
                         $result .= $support_html;
                     }//if(isset($courses[lsbu_course::COURSETYPE_SUPPORT])) {
 
