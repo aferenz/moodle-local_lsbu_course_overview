@@ -167,19 +167,38 @@ class lsbu_course_hierarchy_manager {
         if(date('n', $time) < 10){
             $currentacademicyear = ($year - 1).'/'.$year;
             $previousacademicyear = ($year - 2).'/'.($year-1);
+            $nextacademicyear = ($year).'/'.$year+1;
         }else{
             $currentacademicyear = ($year).'/'.($year + 1);
             $previousacademicyear = ($year-1).'/'.$year;
+            $nextacademicyear = ($year+1).'/'.($year);
         }
 
-        // current academic year goes first
-
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE];
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE];
-        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
-
-        $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
-        $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        // Current academic year goes first
+        if(isset($raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+	        $this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$currentacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        if(isset($raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
+        	$this->hierarchy[$currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
+        }
+        // Then previous academic year
+		if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
+		}
+        if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+			$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        // Finally next academic year
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        
     }
 
     public function get_hierarchy() {
