@@ -55,22 +55,25 @@ class lsbu_course {
         // get category for course/module
         $this->category = $DB->get_record('course_categories', array('id'=>$this->moodle_course->category), '*', MUST_EXIST);
 
-        if(preg_match('/CRS_/', $this->category->idnumber)) {
+        $config = get_config('block_lsbu_course_overview');
+        
+        if(preg_match($config->courseregexp, $this->category->{$config->coursefield})) {
             $this->type = lsbu_course::COURSETYPE_COURSE;
         }
-        if (preg_match('/MOD_/', $this->category->idnumber)) {
+        if (preg_match($config->moduleregexp, $this->category->{$config->modulefield})) {
             $this->type = lsbu_course::COURSETYPE_MODULE;
         }
 
         // Academic year is last 4 characters of shortname, e.g. 1213 - or 'n/a' if it's not applicable
-        if((strlen($this->moodle_course->idnumber) > 4) && (preg_match('/[0-9]{4}$/', $this->moodle_course->shortname))) {
-            $this->academic_year = substr($this->moodle_course->idnumber, -4, 2).'/'.substr($this->moodle_course->idnumber, -2, 2);
+        $academic_year = '';
+        if((strlen($config->academicyearfield) > 4) && (preg_match($config->academicyearregexp, $this->moodle_course->shortname, $academic_year))) {
+            $this->academic_year = substr($academic_year[0], -4, 2).'/'.substr($academic_year[0], -2, 2);
         } else {
             // This is going to be either a 'support' or 'student support' course. We can tell from the category
             // they are in.
-            if(strcasecmp($this->category->name, 'support') == 0) {
+            if(strcasecmp($this->category->name, $config->supportcategory) == 0) {
                 $this->type = lsbu_course::COURSETYPE_SUPPORT;
-            } elseif (strcasecmp($this->category->name, 'student support') == 0) {
+            } elseif (strcasecmp($this->category->name, $config->studentsupportcategory) == 0) {
                 $this->type = lsbu_course::COURSETYPE_STUDENTSUPPORT;
             }
         }
@@ -151,11 +154,8 @@ class lsbu_course_hierarchy_manager {
     private $currentacademicyear;
 
     /**
-     * This function assumes the 'raw_structure' contains a multi-dimensional array that looks
-     * something like...
-     *
-     *      <<< >>>
-     *
+     * This function assumes the 'raw_structure' contains a multi-dimensional array, indexed (basically) by academic year.
+     * 
      * @param $raw_structure
      */
     public function __construct($page, $raw_structure)
@@ -166,22 +166,42 @@ class lsbu_course_hierarchy_manager {
         $time = time();
         $year = date('y', $time);
 
-        if(date('n', $time) < 10){
+        $academicyearstart = intval(get_config('block_lsbu_course_overview', 'academicyearstart'));
+        
+        if(date('n', $time) < $academicyearstart){
             $this->currentacademicyear = ($year - 1).'/'.$year;
             $previousacademicyear = ($year - 2).'/'.($year-1);
+            $nextacademicyear = ($year).'/'.$year+1;
         }else{
             $this->currentacademicyear = ($year).'/'.($year + 1);
             $previousacademicyear = ($year-1).'/'.$year;
+            $nextacademicyear = ($year+1).'/'.($year);
         }
 
-        // current academic year goes first
-
-        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE];
-        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE];
-        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
-
-        $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
-        $this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        // Current academic year goes first
+        if(isset($raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+	        $this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$this->currentacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        if(isset($raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT])) {
+        	$this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
+        }
+        // Then previous academic year
+		if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
+		}
+        if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+			$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
+        // Finally next academic year
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE];
+        }
+        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE];
+        }
     }
 
     public function get_hierarchy() {
@@ -496,7 +516,7 @@ class block_lsbu_course_overview extends block_base {
      * @return boolean
      */
     public function has_config() {
-        return false;
+        return true;
     }
 
     /**
