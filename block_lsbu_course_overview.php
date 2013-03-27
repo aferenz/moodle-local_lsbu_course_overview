@@ -149,11 +149,8 @@ class lsbu_course_hierarchy_manager {
     private $page = null;
 
     /**
-     * This function assumes the 'raw_structure' contains a multi-dimensional array that looks
-     * something like...
-     *
-     *      <<< >>>
-     *
+     * This function assumes the 'raw_structure' contains a multi-dimensional array, indexed (basically) by academic year.
+     * 
      * @param $raw_structure
      */
     public function __construct($page, $raw_structure)
@@ -164,7 +161,9 @@ class lsbu_course_hierarchy_manager {
         $time = time();
         $year = date('y', $time);
 
-        if(date('n', $time) < 10){
+        $academicyearstart = intval(get_config('block_lsbu_course_overview', 'academicyearstart'));
+        
+        if(date('n', $time) < $academicyearstart){
             $currentacademicyear = ($year - 1).'/'.$year;
             $previousacademicyear = ($year - 2).'/'.($year-1);
             $nextacademicyear = ($year).'/'.$year+1;
@@ -488,7 +487,7 @@ class block_lsbu_course_overview extends block_base {
      * @return boolean
      */
     public function has_config() {
-        return false;
+        return true;
     }
 
     /**
