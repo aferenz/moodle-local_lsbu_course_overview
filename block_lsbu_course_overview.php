@@ -152,6 +152,8 @@ class lsbu_course_hierarchy_manager {
     private $page = null;
 
     private $currentacademicyear;
+    private $previousacademicyear;
+    private $nextacademicyear;
 
     /**
      * This function assumes the 'raw_structure' contains a multi-dimensional array, indexed (basically) by academic year.
@@ -170,12 +172,12 @@ class lsbu_course_hierarchy_manager {
         
         if(date('n', $time) < $academicyearstart){
             $this->currentacademicyear = ($year - 1).'/'.$year;
-            $previousacademicyear = ($year - 2).'/'.($year-1);
-            $nextacademicyear = ($year).'/'.$year+1;
+            $this->previousacademicyear = ($year - 2).'/'.($year-1);
+            $this->nextacademicyear = ($year).'/'.$year+1;
         }else{
             $this->currentacademicyear = ($year).'/'.($year + 1);
-            $previousacademicyear = ($year-1).'/'.$year;
-            $nextacademicyear = ($year+1).'/'.($year);
+            $this->previousacademicyear = ($year-1).'/'.$year;
+            $this->nextacademicyear = ($year+1).'/'.($year);
         }
 
         // Current academic year goes first
@@ -189,18 +191,18 @@ class lsbu_course_hierarchy_manager {
         	$this->hierarchy[$this->currentacademicyear][lsbu_course::COURSETYPE_STUDENTSUPPORT] = $raw_structure['n/a'][lsbu_course::COURSETYPE_STUDENTSUPPORT];
         }
         // Then previous academic year
-		if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE])) {
-        	$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_COURSE];
+		if(isset($raw_structure[$this->previousacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$this->previousacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$this->previousacademicyear][lsbu_course::COURSETYPE_COURSE];
 		}
-        if(isset($raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE])) {
-			$this->hierarchy[$previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$previousacademicyear][lsbu_course::COURSETYPE_MODULE];
+        if(isset($raw_structure[$this->previousacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+			$this->hierarchy[$this->previousacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$this->previousacademicyear][lsbu_course::COURSETYPE_MODULE];
         }
         // Finally next academic year
-        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE])) {
-        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_COURSE];
+        if(isset($raw_structure[$this->nextacademicyear][lsbu_course::COURSETYPE_COURSE])) {
+        	$this->hierarchy[$this->nextacademicyear][lsbu_course::COURSETYPE_COURSE] = $raw_structure[$this->nextacademicyear][lsbu_course::COURSETYPE_COURSE];
         }
-        if(isset($raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE])) {
-        	$this->hierarchy[$nextacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$nextacademicyear][lsbu_course::COURSETYPE_MODULE];
+        if(isset($raw_structure[$this->nextacademicyear][lsbu_course::COURSETYPE_MODULE])) {
+        	$this->hierarchy[$this->nextacademicyear][lsbu_course::COURSETYPE_MODULE] = $raw_structure[$this->nextacademicyear][lsbu_course::COURSETYPE_MODULE];
         }
     }
 
@@ -226,6 +228,19 @@ class lsbu_course_hierarchy_manager {
    }
 
 
+    public function get_header($year){
+
+        if($year == $this->currentacademicyear){
+            $header = html_writer::tag('h3', get_string('currentyear','block_lsbu_course_overview',$year));
+        } elseif ($year == $this->previousacademicyear){
+            $header = html_writer::tag('h3', get_string('previousyear','block_lsbu_course_overview',$year));
+        } elseif($year == $this->nextacademicyear){
+            $header = html_writer::tag('h3', get_string('nextyear','block_lsbu_course_overview',$year));
+        }
+        return $header;
+    }
+
+
     public function get_rendered_hierarchy() {
         $result = '';
 
@@ -241,7 +256,7 @@ class lsbu_course_hierarchy_manager {
                 $result .= $this->isexpandable($year);
 
                 // Heading for the year
-                $result .= html_writer::tag('h3', $year);
+                $result .= $this->get_header($year);
                 // display courses and modules if there are any
                 if(!empty($courses)) {
                     // Display courses

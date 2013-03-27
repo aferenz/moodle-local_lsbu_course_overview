@@ -70,4 +70,7 @@ $string['studentsupportcategory'] = 'Student support category';
 $string['configstudentsupportcategory'] = 'Category containing student support courses. The comparison is case insensitive.';
 $string['studentsupportcategorydefault'] = 'student support';
 
-// 
+
+$string['currentyear'] = 'Current Year {$a}';
+$string['previousyear'] = 'Previous Year {$a}';
+$string['nextyear'] = 'Next Year {$a}';
