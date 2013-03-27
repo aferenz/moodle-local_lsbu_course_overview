@@ -55,22 +55,25 @@ class lsbu_course {
         // get category for course/module
         $this->category = $DB->get_record('course_categories', array('id'=>$this->moodle_course->category), '*', MUST_EXIST);
 
-        if(preg_match('/CRS_/', $this->category->idnumber)) {
+        $config = get_config('block_lsbu_course_overview');
+        
+        if(preg_match($config->courseregexp, $config->coursefield)) {
             $this->type = lsbu_course::COURSETYPE_COURSE;
         }
-        if (preg_match('/MOD_/', $this->category->idnumber)) {
+        if (preg_match($config->moduleregexp, $config->modulefield)) {
             $this->type = lsbu_course::COURSETYPE_MODULE;
         }
 
         // Academic year is last 4 characters of shortname, e.g. 1213 - or 'n/a' if it's not applicable
-        if((strlen($this->moodle_course->idnumber) > 4) && (preg_match('/[0-9]{4}$/', $this->moodle_course->shortname))) {
-            $this->academic_year = substr($this->moodle_course->idnumber, -4, 2).'/'.substr($this->moodle_course->idnumber, -2, 2);
+        $academic_year = '';
+        if((strlen($config->academicyearfield) > 4) && (preg_match($config->academicyearregexp, $this->moodle_course->shortname, $academic_year))) {
+            $this->academic_year = substr($academic_year[0], -4, 2).'/'.substr($academic_year[0], -2, 2);
         } else {
             // This is going to be either a 'support' or 'student support' course. We can tell from the category
             // they are in.
-            if(strcasecmp($this->category->name, 'support') == 0) {
+            if(strcasecmp($this->category->name, $config->supportcategory) == 0) {
                 $this->type = lsbu_course::COURSETYPE_SUPPORT;
-            } elseif (strcasecmp($this->category->name, 'student support') == 0) {
+            } elseif (strcasecmp($this->category->name, $config->studentsupportcategory) == 0) {
                 $this->type = lsbu_course::COURSETYPE_STUDENTSUPPORT;
             }
         }
